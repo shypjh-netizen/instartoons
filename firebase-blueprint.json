@@ -1,0 +1,25 @@
+{
+  "entities": {
+    "Character": {
+      "title": "Character",
+      "description": "A generated webtoon character",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "style": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "imageUrl", "description", "style", "createdAt"]
+    }
+  },
+  "firestore": {
+    "characters": {
+      "schema": "Character",
+      "description": "Collection of saved characters"
+    }
+  }
+}
