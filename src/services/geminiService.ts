@@ -2,6 +2,48 @@ import { GoogleGenAI, Modality, Type } from "@google/genai";
 
 const createClient = (apiKey: string) => new GoogleGenAI({ apiKey });
 
+const IMAGE_MODELS = [
+  "gemini-2.0-flash-preview-image-generation",
+  "gemini-2.5-flash-image",
+];
+
+const extractInlineImage = (response: any): string | null => {
+  for (const part of response?.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData?.data) {
+      return `data:${part.inlineData.mimeType || "image/png"};base64,${part.inlineData.data}`;
+    }
+  }
+  return null;
+};
+
+const generateImageWithFallback = async (ai: GoogleGenAI, prompt: string): Promise<string> => {
+  let lastError: unknown = null;
+
+  // 무료 우선 모델부터 순차적으로 시도한다.
+  for (const model of IMAGE_MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseModalities: [Modality.IMAGE, Modality.TEXT],
+        },
+      });
+
+      const imageData = extractInlineImage(response);
+      if (imageData) {
+        return imageData;
+      }
+    } catch (error) {
+      lastError = error;
+      continue;
+    }
+  }
+
+  const detail = lastError instanceof Error ? lastError.message : String(lastError ?? "Unknown error");
+  throw new Error(`이미지 생성에 실패했습니다. ${detail}`);
+};
+
 export const generateCharacter = async (apiKey: string, description: string, style: string) => {
   const ai = createClient(apiKey);
   const stylePrompts: Record<string, string> = {
@@ -11,20 +53,8 @@ export const generateCharacter = async (apiKey: string, description: string, sty
     'retro': 'Retro 90s anime style, grainy texture, vibrant neon accents, bold outlines.'
   };
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash-exp-image-generation",
-    contents: `Create a webtoon character. Style: ${stylePrompts[style] || stylePrompts.standard} Description: ${description}`,
-    config: {
-      responseModalities: [Modality.IMAGE, Modality.TEXT],
-    },
-  });
-
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-    }
-  }
-  throw new Error("이미지 데이터를 받지 못했습니다. API 키와 모델 접근 권한을 확인해주세요.");
+  const prompt = `Create a webtoon character. Style: ${stylePrompts[style] || stylePrompts.standard} Description: ${description}`;
+  return generateImageWithFallback(ai, prompt);
 };
 
 export const generatePanelImage = async (apiKey: string, prompt: string, style: string, characterContext?: string) => {
@@ -36,20 +66,8 @@ export const generatePanelImage = async (apiKey: string, prompt: string, style: 
     'retro': 'Retro 90s anime style, grainy texture, bold outlines.'
   };
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash-exp-image-generation",
-    contents: `Webtoon panel illustration. Style: ${stylePrompts[style] || stylePrompts.standard} ${characterContext ? `Main Character: ${characterContext}` : ''} Scene: ${prompt}`,
-    config: {
-      responseModalities: [Modality.IMAGE, Modality.TEXT],
-    },
-  });
-
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-    }
-  }
-  throw new Error("이미지 데이터를 받지 못했습니다. API 키와 모델 접근 권한을 확인해주세요.");
+  const panelPrompt = `Webtoon panel illustration. Style: ${stylePrompts[style] || stylePrompts.standard} ${characterContext ? `Main Character: ${characterContext}` : ''} Scene: ${prompt}`;
+  return generateImageWithFallback(ai, panelPrompt);
 };
 
 export const generateScript = async (apiKey: string, topic: string, characters: string, panelCount: number, mainCharacter?: { name: string, description: string }) => {
