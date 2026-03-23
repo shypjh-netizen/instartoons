@@ -155,7 +155,8 @@ export default function App() {
       setGeneratedImage(img);
     } catch (error) {
       console.error(error);
-      alert('캐릭터 생성에 실패했습니다.');
+      const msg = error instanceof Error ? error.message : String(error);
+      alert(`캐릭터 생성에 실패했습니다.\n\n${msg}`);
     } finally {
       setLoading(false);
     }
@@ -202,7 +203,8 @@ export default function App() {
       setScriptPanels(data.panels);
     } catch (error) {
       console.error(error);
-      alert('대본 생성에 실패했습니다.');
+      const msg = error instanceof Error ? error.message : String(error);
+      alert(`대본 생성에 실패했습니다.\n\n${msg}`);
     } finally {
       setLoading(false);
     }
@@ -225,7 +227,8 @@ export default function App() {
       setPanelImages(newPanelImages);
     } catch (error) {
       console.error(error);
-      alert(`${index + 1}번 컷 이미지 생성에 실패했습니다.`);
+      const msg = error instanceof Error ? error.message : String(error);
+      alert(`${index + 1}번 컷 이미지 생성에 실패했습니다.\n\n${msg}`);
     } finally {
       const resetPanelLoading = [...panelLoading];
       resetPanelLoading[index] = false;

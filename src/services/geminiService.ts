@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
 
 const createClient = (apiKey: string) => new GoogleGenAI({ apiKey });
 
@@ -13,15 +13,9 @@ export const generateCharacter = async (apiKey: string, description: string, sty
 
   const response = await ai.models.generateContent({
     model: "gemini-2.0-flash-exp-image-generation",
-    contents: {
-      parts: [
-        {
-          text: `Create a webtoon character. Style: ${stylePrompts[style] || stylePrompts.standard} Description: ${description}`,
-        },
-      ],
-    },
+    contents: `Create a webtoon character. Style: ${stylePrompts[style] || stylePrompts.standard} Description: ${description}`,
     config: {
-      responseModalities: ['IMAGE'],
+      responseModalities: [Modality.IMAGE, Modality.TEXT],
     },
   });
 
@@ -30,7 +24,7 @@ export const generateCharacter = async (apiKey: string, description: string, sty
       return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
     }
   }
-  throw new Error("이미지 생성에 실패했습니다. API 키를 확인해주세요.");
+  throw new Error("이미지 데이터를 받지 못했습니다. API 키와 모델 접근 권한을 확인해주세요.");
 };
 
 export const generatePanelImage = async (apiKey: string, prompt: string, style: string, characterContext?: string) => {
@@ -44,17 +38,9 @@ export const generatePanelImage = async (apiKey: string, prompt: string, style: 
 
   const response = await ai.models.generateContent({
     model: "gemini-2.0-flash-exp-image-generation",
-    contents: {
-      parts: [
-        {
-          text: `Webtoon panel illustration. Style: ${stylePrompts[style] || stylePrompts.standard} 
-          ${characterContext ? `Main Character: ${characterContext}` : ''}
-          Scene: ${prompt}`,
-        },
-      ],
-    },
+    contents: `Webtoon panel illustration. Style: ${stylePrompts[style] || stylePrompts.standard} ${characterContext ? `Main Character: ${characterContext}` : ''} Scene: ${prompt}`,
     config: {
-      responseModalities: ['IMAGE'],
+      responseModalities: [Modality.IMAGE, Modality.TEXT],
     },
   });
 
@@ -63,7 +49,7 @@ export const generatePanelImage = async (apiKey: string, prompt: string, style: 
       return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
     }
   }
-  throw new Error("이미지 생성에 실패했습니다. API 키를 확인해주세요.");
+  throw new Error("이미지 데이터를 받지 못했습니다. API 키와 모델 접근 권한을 확인해주세요.");
 };
 
 export const generateScript = async (apiKey: string, topic: string, characters: string, panelCount: number, mainCharacter?: { name: string, description: string }) => {
