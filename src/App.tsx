@@ -9,7 +9,7 @@ import { Sparkles, User, BookOpen, Download, RefreshCw, Send, Image as ImageIcon
 import ReactMarkdown from 'react-markdown';
 import { generateCharacter, generateScript, generatePanelImage } from './services/geminiService';
 import { auth, db } from './firebase';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp, deleteDoc, doc, orderBy } from 'firebase/firestore';
 
 type Tab = 'character' | 'script' | 'gallery';
@@ -24,6 +24,24 @@ interface SavedCharacter {
   style: string;
   createdAt: any;
 }
+
+const getFirebaseAuthErrorMessage = (error: unknown): string => {
+  const code = (error as { code?: string } | null)?.code;
+  switch (code) {
+    case 'auth/popup-blocked':
+      return '브라우저 팝업이 차단되었습니다. 자동으로 리다이렉트 로그인으로 전환합니다.';
+    case 'auth/popup-closed-by-user':
+      return '로그인 창이 닫혔습니다. 다시 시도해주세요.';
+    case 'auth/unauthorized-domain':
+      return '현재 도메인이 Firebase 인증 허용 도메인에 등록되지 않았습니다. Firebase Console > Authentication > Settings > Authorized domains에서 localhost를 추가해주세요.';
+    case 'auth/operation-not-allowed':
+      return 'Firebase Console에서 Google 로그인 제공자가 비활성화되어 있습니다. Authentication > Sign-in method에서 Google을 활성화해주세요.';
+    case 'auth/network-request-failed':
+      return '네트워크 오류로 로그인에 실패했습니다. 인터넷 연결을 확인 후 다시 시도해주세요.';
+    default:
+      return error instanceof Error ? error.message : '로그인에 실패했습니다.';
+  }
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('character');
@@ -138,11 +156,18 @@ export default function App() {
   };
 
   const handleLogin = async () => {
+    const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
+      await signInWithPopup(auth, provider);
     } catch (error) {
       console.error(error);
-      alert('로그인에 실패했습니다.');
+      const code = (error as { code?: string } | null)?.code;
+      if (code === 'auth/popup-blocked') {
+        alert(getFirebaseAuthErrorMessage(error));
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+      alert(`로그인에 실패했습니다.\n\n${getFirebaseAuthErrorMessage(error)}`);
     }
   };
 
