@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, User, BookOpen, Download, RefreshCw, Send, Image as ImageIcon, Loader2, Save, Trash2, LogIn } from 'lucide-react';
+import { Sparkles, User, BookOpen, Download, RefreshCw, Send, Image as ImageIcon, Loader2, Save, Trash2, LogIn, Settings, Eye, EyeOff, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { generateCharacter, generateScript, generatePanelImage } from './services/geminiService';
 import { auth, db } from './firebase';
@@ -29,7 +29,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('character');
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  
+
+  // API Key State
+  const [apiKey, setApiKey] = useState('');
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showApiSettings, setShowApiSettings] = useState(false);
+  const [rememberApiKey, setRememberApiKey] = useState(true);
+  const [showApiKeyValue, setShowApiKeyValue] = useState(false);
+
   // Character State
   const [charName, setCharName] = useState('');
   const [charDescription, setCharDescription] = useState('');
@@ -62,6 +69,15 @@ export default function App() {
   const [scriptPanels, setScriptPanels] = useState<any[]>([]);
   const [panelImages, setPanelImages] = useState<(string | null)[]>([]);
   const [panelLoading, setPanelLoading] = useState<boolean[]>([]);
+
+  // Load API key from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('geminiApiKey');
+    if (saved) {
+      setApiKey(saved);
+      setApiKeyInput(saved);
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -103,6 +119,24 @@ export default function App() {
     }
   }, [savedCharacters, selectedCharacter]);
 
+  const handleSaveApiKey = () => {
+    const trimmed = apiKeyInput.trim();
+    setApiKey(trimmed);
+    if (rememberApiKey && trimmed) {
+      localStorage.setItem('geminiApiKey', trimmed);
+    } else {
+      localStorage.removeItem('geminiApiKey');
+    }
+    setShowApiSettings(false);
+  };
+
+  const handleClearApiKey = () => {
+    setApiKey('');
+    setApiKeyInput('');
+    localStorage.removeItem('geminiApiKey');
+    setShowApiSettings(false);
+  };
+
   const handleLogin = async () => {
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
@@ -114,9 +148,10 @@ export default function App() {
 
   const handleGenerateCharacter = async () => {
     if (!charDescription) return;
+    if (!apiKey) { setApiKeyInput(''); setShowApiSettings(true); return; }
     setLoading(true);
     try {
-      const img = await generateCharacter(charDescription, charStyle);
+      const img = await generateCharacter(apiKey, charDescription, charStyle);
       setGeneratedImage(img);
     } catch (error) {
       console.error(error);
@@ -154,6 +189,7 @@ export default function App() {
 
   const handleGenerateScript = async () => {
     if (!scriptTopic) return;
+    if (!apiKey) { setApiKeyInput(''); setShowApiSettings(true); return; }
     setLoading(true);
     setGeneratedScript(null);
     setScriptPanels([]);
@@ -161,7 +197,7 @@ export default function App() {
     setPanelLoading(new Array(panelCount).fill(false));
     try {
       const mainChar = selectedCharacter ? { name: selectedCharacter.name, description: selectedCharacter.description } : undefined;
-      const data = await generateScript(scriptTopic, scriptCharacters, panelCount, mainChar);
+      const data = await generateScript(apiKey, scriptTopic, scriptCharacters, panelCount, mainChar);
       setGeneratedScript(data.scriptMarkdown);
       setScriptPanels(data.panels);
     } catch (error) {
@@ -175,6 +211,7 @@ export default function App() {
   const handleGeneratePanelImage = async (index: number) => {
     const panel = scriptPanels[index];
     if (!panel) return;
+    if (!apiKey) { setApiKeyInput(''); setShowApiSettings(true); return; }
 
     const newPanelLoading = [...panelLoading];
     newPanelLoading[index] = true;
@@ -182,7 +219,7 @@ export default function App() {
 
     try {
       const charContext = selectedCharacter ? `${selectedCharacter.name} (${selectedCharacter.description})` : undefined;
-      const img = await generatePanelImage(panel.imagePrompt, selectedCharacter?.style || charStyle, charContext);
+      const img = await generatePanelImage(apiKey, panel.imagePrompt, selectedCharacter?.style || charStyle, charContext);
       const newPanelImages = [...panelImages];
       newPanelImages[index] = img;
       setPanelImages(newPanelImages);
@@ -234,6 +271,16 @@ export default function App() {
             </button>
           </nav>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => { setApiKeyInput(apiKey); setShowApiSettings(true); }}
+              className={`relative p-2 rounded-lg transition-all ${apiKey ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-500 hover:bg-amber-50'}`}
+              title={apiKey ? 'API 키 설정됨' : 'API 키를 설정해주세요'}
+            >
+              <Settings size={18} />
+              {!apiKey && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-amber-500 rounded-full" />
+              )}
+            </button>
             {user ? (
               <div className="flex items-center gap-2">
                 <img src={user.photoURL || ''} alt="User" className="w-8 h-8 rounded-full border border-stone-200" />
@@ -254,6 +301,25 @@ export default function App() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8">
+        {!apiKey && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Settings size={16} className="text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Gemini API 키가 필요합니다</p>
+                <p className="text-xs text-amber-600 mt-0.5">이미지·대본 생성을 위해 무료 API 키를 설정해주세요.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setApiKeyInput(''); setShowApiSettings(true); }}
+              className="flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all"
+            >
+              설정하기
+            </button>
+          </div>
+        )}
         <AnimatePresence mode="wait">
           {activeTab === 'character' ? (
             <motion.div
@@ -636,6 +702,95 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* API Key Settings Modal */}
+      {showApiSettings && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowApiSettings(false)}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2 text-stone-800">
+                <Settings size={20} className="text-emerald-600" />
+                <h2 className="text-base font-bold">Gemini API 키 설정</h2>
+              </div>
+              <button
+                onClick={() => setShowApiSettings(false)}
+                className="text-stone-400 hover:text-stone-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-xs text-stone-500 mb-4 leading-relaxed">
+              Gemini API 키가 필요합니다.{' '}
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-600 hover:underline font-medium"
+              >
+                Google AI Studio에서 무료로 발급받기 →
+              </a>
+            </p>
+
+            <div className="relative mb-4">
+              <input
+                type={showApiKeyValue ? 'text' : 'password'}
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && apiKeyInput.trim() && handleSaveApiKey()}
+                placeholder="AIzaSy..."
+                className="w-full pr-10 p-3 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-sm font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKeyValue(!showApiKeyValue)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+              >
+                {showApiKeyValue ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+
+            <label
+              className="flex items-center gap-3 mb-5 cursor-pointer select-none"
+              onClick={() => setRememberApiKey(!rememberApiKey)}
+            >
+              <div className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 ${rememberApiKey ? 'bg-emerald-500' : 'bg-stone-300'}`}>
+                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${rememberApiKey ? 'left-4' : 'left-0.5'}`} />
+              </div>
+              <div>
+                <span className="text-sm text-stone-700 font-medium">기억하기</span>
+                <span className="text-xs text-stone-400 ml-1.5">(브라우저에 저장)</span>
+              </div>
+            </label>
+
+            <div className="flex gap-2">
+              {apiKey && (
+                <button
+                  type="button"
+                  onClick={handleClearApiKey}
+                  className="flex-1 py-2.5 border border-stone-200 text-stone-600 rounded-xl text-sm font-medium hover:bg-stone-50 transition-all"
+                >
+                  키 삭제
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveApiKey}
+                disabled={!apiKeyInput.trim()}
+                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-stone-200 disabled:text-stone-400 text-white rounded-xl text-sm font-bold transition-all"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
